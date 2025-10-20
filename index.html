@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Pin-Copy Notepad (No Duplicates)</title>
+    <title>Dynamic Pin-Copy Notepad (Advanced Swipe)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         body {
@@ -33,11 +33,20 @@
             margin-bottom: 20px;
             align-items: center;
         }
-        #newNoteText {
+        .input-wrapper {
             flex-grow: 1;
-            padding: 10px;
+            position: relative;
+            display: flex; /* To align input and pin-toggle */
+            align-items: center;
             border: 2px solid #ccc;
             border-radius: 5px;
+            padding-left: 10px; /* Space for the pin icon */
+        }
+        #newNoteText {
+            flex-grow: 1;
+            padding: 10px 10px 10px 0;
+            border: none;
+            outline: none;
             font-size: 16px;
         }
         #addNoteBtn {
@@ -54,6 +63,16 @@
         #addNoteBtn:hover {
             background-color: #1e7e34;
         }
+        /* Input Pin Toggle */
+        #inputPinToggle {
+            font-size: 18px;
+            cursor: pointer;
+            color: #ccc;
+            transition: color 0.2s;
+        }
+        #inputPinToggle.pinned {
+            color: #ff9800;
+        }
 
         /* Note List */
         #notesList {
@@ -68,19 +87,19 @@
             overflow: hidden; 
         }
         
-        /* Delete Button Wrapper - Hidden to the right */
+        /* --- Action Areas (Background) --- */
+        /* Delete Action - Right Side (Moves Left) */
         .delete-action {
             position: absolute;
             top: 0;
             right: 0;
-            width: 100px; /* Width of the delete area */
+            width: 100px; 
             height: 100%;
             background-color: #dc3545;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 0;
-            transition: transform 0.3s ease;
         }
         .delete-btn {
             color: white;
@@ -92,40 +111,59 @@
             height: 100%;
             width: 100%;
         }
+        
+        /* Pin Action - Left Side (Moves Right) */
+        .pin-action {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100px;
+            height: 100%;
+            background-color: #ff9800; /* Orange for pin */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 0;
+        }
+        .pin-action-btn {
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            background: none;
+            border: none;
+            cursor: pointer;
+            height: 100%;
+            width: 100%;
+        }
 
-        /* Main Note Content Area - Slides Left */
+
+        /* Main Note Content Area - Slides */
         .note-content-area {
             display: flex;
-            justify-content: flex-start;
+            justify-content: space-between;
             align-items: center;
             padding: 12px;
-            background-color: #fff; /* White background on top of delete button */
+            background-color: #fff;
             position: relative;
             z-index: 1;
             transition: transform 0.3s ease;
         }
         
-        /* When .show-delete class is active, slide the content left */
+        /* Slide Left (Reveal Delete) */
         #notesList li.show-delete .note-content-area {
-            transform: translateX(-100px); /* Slide amount equals delete button width */
+            transform: translateX(-100px); 
             box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Slide Right (Reveal Pin) */
+        #notesList li.show-pin .note-content-area {
+            transform: translateX(100px); 
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
         }
         
         /* Pinned Note Style */
         #notesList li[data-pinned="true"] .note-content-area {
-            background-color: #ffe0b2; /* Light orange for pinned */
-        }
-
-        /* Left Side Pin Icon */
-        .pin-toggle {
-            font-size: 18px;
-            cursor: pointer;
-            margin-right: 10px;
-            color: #ccc;
-            transition: color 0.2s;
-        }
-        #notesList li[data-pinned="true"] .pin-toggle {
-            color: #ff9800; /* Orange when pinned */
+            background-color: #ffe0b2; 
         }
 
         .note-text {
@@ -161,12 +199,15 @@
     <h2>Dynamic Pin-Copy Notepad</h2>
 
     <div class="input-area">
-        <input type="text" id="newNoteText" placeholder="Enter text or link here...">
+        <div class="input-wrapper">
+            <i id="inputPinToggle" class="far fa-regular fa-thumbtack" title="Default Pin Status"></i>
+            <input type="text" id="newNoteText" placeholder="Enter text or link here...">
+        </div>
         <button id="addNoteBtn" title="Add Note">+</button>
     </div>
 
     <ul id="notesList">
-        </ul>
+    </ul>
     
     <p id="message" class="message"></p>
 </div>
@@ -177,42 +218,66 @@
         const addButton = document.getElementById('addNoteBtn');
         const notesList = document.getElementById('notesList');
         const messageElement = document.getElementById('message');
+        const inputPinToggle = document.getElementById('inputPinToggle');
+
+        // State for input pin
+        let isInputPinned = false; 
+
+        // Toggle the input pin state
+        inputPinToggle.addEventListener('click', () => {
+            isInputPinned = !isInputPinned;
+            inputPinToggle.classList.toggle('pinned', isInputPinned);
+            inputPinToggle.className = isInputPinned ? 'fas fa-thumbtack pinned' : 'far fa-regular fa-thumbtack';
+            showMessage(isInputPinned ? "New notes will be pinned." : "New notes will be unpinned.", "grey");
+        });
         
         // Helper function to check for duplicates
         const isDuplicate = (text) => {
             const existingItems = notesList.querySelectorAll('.note-text');
-            for (let i = 0; i < existingItems.length; i++) {
-                // Comparing text content (ignoring the initial pin icon if present in text)
-                if (existingItems[i].textContent.trim() === text.trim() || existingItems[i].textContent.trim().includes(text.trim())) {
-                    return true;
-                }
-            }
-            return false;
+            return Array.from(existingItems).some(item => 
+                item.textContent.trim() === text.trim()
+            );
         };
 
         // Function to add a new note
-        const addNote = (initialPinned = false) => {
+        const addNote = () => {
             const noteText = inputField.value.trim();
+            const initialPinned = isInputPinned; // Use the current input pin state
             
             if (noteText === "") {
                 showMessage("Please enter some text!", "orange");
                 return;
             }
             
-            // *** DUPLICATE CHECK ***
+            // DUPLICATE CHECK
             if (isDuplicate(noteText)) {
                 showMessage("Error: This text/link is already added!", "red");
                 inputField.value = "";
                 inputField.focus();
                 return;
             }
-            // *********************
 
             // 1. Create HTML elements
             const listItem = document.createElement('li');
             listItem.setAttribute('data-pinned', initialPinned); 
             
-            // Delete Button Wrapper (Right side)
+            // --- ACTION BUTTONS (Background) ---
+            
+            // Left Side Pin/Unpin Action (Revealed on Right Swipe)
+            const pinAction = document.createElement('div');
+            pinAction.className = 'pin-action';
+            const pinActionButton = document.createElement('button');
+            pinActionButton.className = 'pin-action-btn';
+            
+            // Set initial button text based on pin state
+            pinActionButton.textContent = initialPinned ? 'UNPIN' : 'PIN'; 
+            
+            pinActionButton.addEventListener('click', () => togglePin(listItem, pinActionButton));
+            pinAction.appendChild(pinActionButton);
+            listItem.appendChild(pinAction);
+
+
+            // Right Side Delete Action (Revealed on Left Swipe)
             const deleteAction = document.createElement('div');
             deleteAction.className = 'delete-action';
             const deleteButton = document.createElement('button');
@@ -225,16 +290,11 @@
             deleteAction.appendChild(deleteButton);
             listItem.appendChild(deleteAction);
 
-            // Main Note Content Area
+            // --- MAIN CONTENT (Foreground) ---
+
             const contentArea = document.createElement('div');
             contentArea.className = 'note-content-area';
 
-            // Left Side Pin Toggle Icon
-            const pinToggle = document.createElement('i');
-            pinToggle.className = initialPinned ? 'pin-toggle fas fa-thumbtack' : 'pin-toggle far fa-regular fa-thumbtack';
-            pinToggle.title = 'Pin/Unpin';
-            pinToggle.addEventListener('click', () => togglePin(listItem, pinToggle));
-            
             const textSpan = document.createElement('span');
             textSpan.className = 'note-text';
             textSpan.textContent = noteText;
@@ -245,37 +305,52 @@
             copyButton.addEventListener('click', () => copyAndHandleRemoval(noteText, listItem));
             
             // Assemble elements
-            contentArea.appendChild(pinToggle);
             contentArea.appendChild(textSpan);
             contentArea.appendChild(copyButton);
             
             listItem.appendChild(contentArea);
             
-            notesList.appendChild(listItem);
+            // Prepend if pinned, otherwise append
+            if (initialPinned) {
+                 notesList.prepend(listItem);
+            } else {
+                 notesList.appendChild(listItem);
+            }
 
-            // HOVER/TOUCH Handlers for Swipe Effect
-            listItem.addEventListener('mouseenter', () => {
+            // --- HOVER/TOUCH Handlers for Swipe Effect ---
+            // Using a simple hover for a desktop-like swipe effect
+            listItem.addEventListener('mouseenter', (e) => {
+                // Determine if mouse is closer to left or right edge of li
+                const rect = listItem.getBoundingClientRect();
+                const x = e.clientX - rect.left; // x position within the element.
+                const width = rect.width;
+                const threshold = width * 0.5; // 50% midpoint
+
+                // Use a timeout to prevent accidental quick flickers
                 listItem.timeout = setTimeout(() => {
-                    if (!listItem.isAction) {
+                    // Left swipe (reveal delete)
+                    if (x > threshold) { 
                         listItem.classList.add('show-delete');
+                        listItem.classList.remove('show-pin');
+                    } 
+                    // Right swipe (reveal pin)
+                    else { 
+                        listItem.classList.add('show-pin');
+                        listItem.classList.remove('show-delete');
                     }
-                    listItem.isAction = false; 
                 }, 100); 
             });
 
             listItem.addEventListener('mouseleave', () => {
                 clearTimeout(listItem.timeout);
                 listItem.classList.remove('show-delete');
+                listItem.classList.remove('show-pin');
             });
             
             // Stop swipe/reveal when an action button is clicked
             copyButton.addEventListener('click', () => {
-                listItem.isAction = true; 
                 listItem.classList.remove('show-delete');
-            });
-            pinToggle.addEventListener('click', () => {
-                listItem.isAction = true;
-                listItem.classList.remove('show-delete');
+                listItem.classList.remove('show-pin');
             });
 
             // Clear input and focus
@@ -284,38 +359,58 @@
         };
 
         // Pin Toggle Function
-        const togglePin = (listItem, pinIcon) => {
+        const togglePin = (listItem, pinActionButton) => {
             const isPinned = listItem.getAttribute('data-pinned') === 'true';
             const newPinnedStatus = !isPinned;
             
             listItem.setAttribute('data-pinned', newPinnedStatus);
+            pinActionButton.textContent = newPinnedStatus ? 'UNPIN' : 'PIN';
             
             if (newPinnedStatus) {
-                pinIcon.className = 'pin-toggle fas fa-thumbtack';
                 showMessage("Note pinned.", "blue");
             } else {
-                pinIcon.className = 'pin-toggle far fa-regular fa-thumbtack';
                 showMessage("Note unpinned.", "grey");
             }
+            
+            // Re-sort the list if required (optional, but good practice)
+            sortNotes();
+            
+            // Hide the action area after action
+            listItem.classList.remove('show-pin');
         };
+        
+        // Sorts pinned notes to the top
+        const sortNotes = () => {
+            const pinnedNotes = Array.from(notesList.querySelectorAll('li[data-pinned="true"]'));
+            const unpinnedNotes = Array.from(notesList.querySelectorAll('li[data-pinned="false"]'));
+            
+            // Clear the list
+            notesList.innerHTML = ''; 
+            
+            // Re-append: pinned first, then unpinned
+            pinnedNotes.forEach(note => notesList.appendChild(note));
+            unpinnedNotes.forEach(note => notesList.appendChild(note));
+        }
+
 
         // Copy Function (Removes if not pinned)
         const copyAndHandleRemoval = (textToCopy, listItem) => {
             const isPinned = listItem.getAttribute('data-pinned') === 'true';
-
+            
+            // Check for modern Clipboard API support
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(textToCopy)
                     .then(() => {
                         showMessage("Successfully copied: " + textToCopy.substring(0, 30) + "...", "green");
                         if (!isPinned) {
-                            listItem.remove(); // Remove if not pinned
+                            listItem.remove(); 
                         }
                     })
                     .catch(err => {
                         showMessage("Copy failed: Please try manually.", "red");
                     });
             } else {
-                // Fallback for older browsers
+                // Fallback for older browsers (less reliable)
                 const tempTextarea = document.createElement('textarea');
                 tempTextarea.value = textToCopy;
                 document.body.appendChild(tempTextarea);
@@ -346,11 +441,11 @@
         };
 
         // Event Listeners Setup
-        addButton.addEventListener('click', () => addNote(false));
+        addButton.addEventListener('click', addNote);
         
         inputField.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                addNote(false);
+                addNote();
             }
         });
     });
