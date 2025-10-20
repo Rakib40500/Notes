@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Pin-Copy Notepad (No Duplicates)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+            padding: 20px;
+        }
+        .container {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+        }
+        h2 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        #newNoteText {
+            flex-grow: 1;
+            padding: 10px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #addNoteBtn {
+            padding: 10px 15px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 1;
+            transition: background-color 0.3s;
+        }
+        #addNoteBtn:hover {
+            background-color: #1e7e34;
+        }
+
+        /* Note List */
+        #notesList {
+            list-style: none;
+            padding: 0;
+        }
+        #notesList li {
+            position: relative;
+            margin-bottom: 8px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden; 
+        }
+        
+        /* Delete Button Wrapper - Hidden to the right */
+        .delete-action {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px; /* Width of the delete area */
+            height: 100%;
+            background-color: #dc3545;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 0;
+            transition: transform 0.3s ease;
+        }
+        .delete-btn {
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            background: none;
+            border: none;
+            cursor: pointer;
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Main Note Content Area - Slides Left */
+        .note-content-area {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            padding: 12px;
+            background-color: #fff; /* White background on top of delete button */
+            position: relative;
+            z-index: 1;
+            transition: transform 0.3s ease;
+        }
+        
+        /* When .show-delete class is active, slide the content left */
+        #notesList li.show-delete .note-content-area {
+            transform: translateX(-100px); /* Slide amount equals delete button width */
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Pinned Note Style */
+        #notesList li[data-pinned="true"] .note-content-area {
+            background-color: #ffe0b2; /* Light orange for pinned */
+        }
+
+        /* Left Side Pin Icon */
+        .pin-toggle {
+            font-size: 18px;
+            cursor: pointer;
+            margin-right: 10px;
+            color: #ccc;
+            transition: color 0.2s;
+        }
+        #notesList li[data-pinned="true"] .pin-toggle {
+            color: #ff9800; /* Orange when pinned */
+        }
+
+        .note-text {
+            flex-grow: 1;
+            margin-right: 15px;
+            word-break: break-all;
+        }
+        .copy-btn {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            white-space: nowrap;
+        }
+        .copy-btn:hover {
+            background-color: #0056b3;
+        }
+        .message {
+            text-align: center;
+            color: green;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Dynamic Pin-Copy Notepad</h2>
+
+    <div class="input-area">
+        <input type="text" id="newNoteText" placeholder="Enter text or link here...">
+        <button id="addNoteBtn" title="Add Note">+</button>
+    </div>
+
+    <ul id="notesList">
+        </ul>
+    
+    <p id="message" class="message"></p>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const inputField = document.getElementById('newNoteText');
+        const addButton = document.getElementById('addNoteBtn');
+        const notesList = document.getElementById('notesList');
+        const messageElement = document.getElementById('message');
+        
+        // Helper function to check for duplicates
+        const isDuplicate = (text) => {
+            const existingItems = notesList.querySelectorAll('.note-text');
+            for (let i = 0; i < existingItems.length; i++) {
+                // Comparing text content (ignoring the initial pin icon if present in text)
+                if (existingItems[i].textContent.trim() === text.trim() || existingItems[i].textContent.trim().includes(text.trim())) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // Function to add a new note
+        const addNote = (initialPinned = false) => {
+            const noteText = inputField.value.trim();
+            
+            if (noteText === "") {
+                showMessage("Please enter some text!", "orange");
+                return;
+            }
+            
+            // *** DUPLICATE CHECK ***
+            if (isDuplicate(noteText)) {
+                showMessage("Error: This text/link is already added!", "red");
+                inputField.value = "";
+                inputField.focus();
+                return;
+            }
+            // *********************
+
+            // 1. Create HTML elements
+            const listItem = document.createElement('li');
+            listItem.setAttribute('data-pinned', initialPinned); 
+            
+            // Delete Button Wrapper (Right side)
+            const deleteAction = document.createElement('div');
+            deleteAction.className = 'delete-action';
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'delete-btn';
+            deleteButton.textContent = 'DELETE';
+            deleteButton.addEventListener('click', () => {
+                listItem.remove();
+                showMessage("Note deleted.", "red");
+            });
+            deleteAction.appendChild(deleteButton);
+            listItem.appendChild(deleteAction);
+
+            // Main Note Content Area
+            const contentArea = document.createElement('div');
+            contentArea.className = 'note-content-area';
+
+            // Left Side Pin Toggle Icon
+            const pinToggle = document.createElement('i');
+            pinToggle.className = initialPinned ? 'pin-toggle fas fa-thumbtack' : 'pin-toggle far fa-regular fa-thumbtack';
+            pinToggle.title = 'Pin/Unpin';
+            pinToggle.addEventListener('click', () => togglePin(listItem, pinToggle));
+            
+            const textSpan = document.createElement('span');
+            textSpan.className = 'note-text';
+            textSpan.textContent = noteText;
+            
+            const copyButton = document.createElement('button');
+            copyButton.className = 'copy-btn';
+            copyButton.textContent = 'Copy';
+            copyButton.addEventListener('click', () => copyAndHandleRemoval(noteText, listItem));
+            
+            // Assemble elements
+            contentArea.appendChild(pinToggle);
+            contentArea.appendChild(textSpan);
+            contentArea.appendChild(copyButton);
+            
+            listItem.appendChild(contentArea);
+            
+            notesList.appendChild(listItem);
+
+            // HOVER/TOUCH Handlers for Swipe Effect
+            listItem.addEventListener('mouseenter', () => {
+                listItem.timeout = setTimeout(() => {
+                    if (!listItem.isAction) {
+                        listItem.classList.add('show-delete');
+                    }
+                    listItem.isAction = false; 
+                }, 100); 
+            });
+
+            listItem.addEventListener('mouseleave', () => {
+                clearTimeout(listItem.timeout);
+                listItem.classList.remove('show-delete');
+            });
+            
+            // Stop swipe/reveal when an action button is clicked
+            copyButton.addEventListener('click', () => {
+                listItem.isAction = true; 
+                listItem.classList.remove('show-delete');
+            });
+            pinToggle.addEventListener('click', () => {
+                listItem.isAction = true;
+                listItem.classList.remove('show-delete');
+            });
+
+            // Clear input and focus
+            inputField.value = "";
+            inputField.focus(); 
+        };
+
+        // Pin Toggle Function
+        const togglePin = (listItem, pinIcon) => {
+            const isPinned = listItem.getAttribute('data-pinned') === 'true';
+            const newPinnedStatus = !isPinned;
+            
+            listItem.setAttribute('data-pinned', newPinnedStatus);
+            
+            if (newPinnedStatus) {
+                pinIcon.className = 'pin-toggle fas fa-thumbtack';
+                showMessage("Note pinned.", "blue");
+            } else {
+                pinIcon.className = 'pin-toggle far fa-regular fa-thumbtack';
+                showMessage("Note unpinned.", "grey");
+            }
+        };
+
+        // Copy Function (Removes if not pinned)
+        const copyAndHandleRemoval = (textToCopy, listItem) => {
+            const isPinned = listItem.getAttribute('data-pinned') === 'true';
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textToCopy)
+                    .then(() => {
+                        showMessage("Successfully copied: " + textToCopy.substring(0, 30) + "...", "green");
+                        if (!isPinned) {
+                            listItem.remove(); // Remove if not pinned
+                        }
+                    })
+                    .catch(err => {
+                        showMessage("Copy failed: Please try manually.", "red");
+                    });
+            } else {
+                // Fallback for older browsers
+                const tempTextarea = document.createElement('textarea');
+                tempTextarea.value = textToCopy;
+                document.body.appendChild(tempTextarea);
+                tempTextarea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    showMessage("Successfully copied (Fallback): " + textToCopy.substring(0, 30) + "...", "green");
+                    if (!isPinned) {
+                        listItem.remove();
+                    }
+                } catch (err) {
+                    showMessage("Copy failed.", "red");
+                }
+                
+                document.body.removeChild(tempTextarea);
+            }
+        };
+
+        // Message Display Function
+        const showMessage = (msg, color) => {
+            messageElement.textContent = msg;
+            messageElement.style.color = color;
+            
+            setTimeout(() => {
+                messageElement.textContent = "";
+            }, 2000);
+        };
+
+        // Event Listeners Setup
+        addButton.addEventListener('click', () => addNote(false));
+        
+        inputField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addNote(false);
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
